@@ -1,47 +1,32 @@
-import { getShortUrlDao } from "../dao/short_url.dao.js";
+import { getRedirectUrlService } from "../services/short_url.service.js";
 import {
     createShortUrlWithoutUserService,
     createShortUrlWithUserService
 } from "../services/short_url.service.js";
 
-export const createShortUrl = async (req, res) => {
+export const createShortUrl = async (req, res, next) => {
+  try {
     const { url, userid } = req.body;
 
-    let shortUrl;
-    if (userid) {
-        // user-scoped short URL
-        shortUrl = await createShortUrlWithUserService(url, userid);
-    } else {
-        // anonymous short URL
-        shortUrl = await createShortUrlWithoutUserService(url);
-    }
+    const shortUrl = userid
+      ? await createShortUrlWithUserService(url, userid)
+      : await createShortUrlWithoutUserService(url);
 
     return res.status(201).json({
-        success: true,
-        message: "Short URL created successfully",
-        short_url: shortUrl.short_url,
+      success:   true,
+      message:   "Short URL created successfully",
+      short_url: shortUrl.short_url,
     });
+  } catch (err) {
+    next(err); 
+  }
 };
 
-export const getShortUrl = async (req, res) => {
-    try {
-        const { shortUrl } = req.params;
-
-        const urlDoc = await getShortUrlDao(shortUrl)
-
-        if (!urlDoc) {
-            return res.status(404).json({ success: false, message: "Short URL not found" });
-        }
-
-        let redirectTo = urlDoc.full_url;
-        if (!/^https?:\/\//i.test(redirectTo)) {
-            redirectTo = "https://" + redirectTo;
-        }
-
-        return res.redirect(redirectTo);
-
-    } catch (error) {
-        console.error("Error fetching URL:", error);
-        return res.status(500).json({ success: false, message: "Internal Server Error" });
-    }
-}
+export const redirectController = async (req, res, next) => {
+  try {
+    const redirectTo = await getRedirectUrlService(req.params.shortUrl);
+    return res.redirect(redirectTo);
+  } catch (err) {
+    next(err);
+  }
+};
